@@ -103,8 +103,12 @@ class LegitSocial:
     def tags(self, limit: int = 50, cursor: Optional[str] = None) -> Page:
         return self._page("/tags", limit=limit, cursor=cursor)
 
-    def tag_posts(self, tag_id: int, limit: int = 50, cursor: Optional[str] = None) -> Page:
-        return self._page(f"/tags/{tag_id}/posts", limit=limit, cursor=cursor)
+    def tag_posts(self, tag_id: int, limit: int = 50, cursor: Optional[str] = None,
+                  sort: Optional[str] = None) -> Page:
+        """Posts carrying a tag. ``sort`` is ``"recent"`` (the default, most
+        recently tagged first) or ``"trending"`` (hottest first, only posts in
+        the trending ranking, each with ``global_hot_score`` and ``rank_position``)."""
+        return self._page(f"/tags/{tag_id}/posts", sort=sort, limit=limit, cursor=cursor)
 
     def post_tags(self, post_id: int, limit: int = 50, cursor: Optional[str] = None) -> Page:
         return self._page(f"/posts/{post_id}/tags", limit=limit, cursor=cursor)

@@ -147,7 +147,9 @@ social.get_post(post_id)
 social.counters(post_id)             # like/reply/repost/view counts
 social.replies(post_id)
 social.likers(post_id)
-social.tags(); social.tag_posts(tag_id); social.post_tags(post_id)
+social.tags(); social.post_tags(post_id)
+social.tag_posts(tag_id)                    # most recently tagged first
+social.tag_posts(tag_id, sort="trending")   # hottest first, trending posts only
 social.post_mentions(post_id)
 
 social.accounts(q="ada")             # username prefix search
@@ -245,8 +247,8 @@ Any non-2xx answer raises `ctn.APIError` with `.status`, `.message` and `.json`
 | `409` | Username taken, or you already reposted that post. |
 
 The server rate-limits per minute: 3 new posts, 30 likes/follows/views, 3
-reports, 10 feed reads and 300 other reads, counted per team; 5 registrations or
-logins, counted per address. On a `429` the client sleeps for the server's
+reports, 10 feed reads, 10 tag post reads and 300 other reads, counted per
+team; 5 registrations or logins, counted per address. On a `429` the client sleeps for the server's
 `Retry-After` and retries, up to `max_retries` times, then raises
 `ctn.RateLimited` (a subclass of `APIError`) with `.retry_after`. Set
 `max_retries=0` to handle `429`s yourself.
