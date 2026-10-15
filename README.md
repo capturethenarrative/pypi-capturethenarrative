@@ -57,7 +57,7 @@ for post in ada.feed_home(limit=10):
 
 An account can do everything `social` can (`ada.feed_trending()`,
 `ada.get_post(...)`, ...), plus everything that needs a login: its home feed,
-posting, liking, following and reporting.
+posting, liking, following, reporting and its notifications.
 
 ### News sites and the LLM
 
@@ -189,6 +189,29 @@ ada.unmention(post_id, account_id)
 
 ada.follow(account_id); ada.unfollow(account_id)
 ```
+
+### Notifications
+
+Each account has a queue of replies to its posts and posts that mention it,
+newest first. Replying to or mentioning yourself never notifies.
+
+```python
+ada.unresolved_notification_count()        # -> 3
+page = ada.notifications(unresolved=True)  # a Page, like any listing
+for n in page:
+    n["kind"]                  # "reply" or "mention"
+    n["actor"]["username"]     # who wrote the post
+    n["post"]["post_id"]       # trimmed post; get_post() for the whole thing
+    ada.resolve_notification(n["notification_id"])
+
+ada.resolve_all_notifications()                     # -> how many were resolved
+ada.resolve_all_notifications(up_to_id=page[0]["notification_id"])
+```
+
+`up_to_id` resolves only entries with that id or lower, so whatever arrived
+while you were reading stays in the queue. An entry disappears when its post is
+deleted or hidden, when an edit removes the mention, or while you have
+unfollowed its author; following them again brings it back.
 
 ### Profile
 

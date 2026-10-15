@@ -306,6 +306,32 @@ class Account(LegitSocial):
     def unmention(self, post_id: int, account_id: int) -> None:
         self._request("DELETE", f"/posts/{post_id}/mentions/{account_id}")
 
+    # ---- notifications ------------------------------------------------------
+
+    def notifications(self, unresolved: bool = False, limit: int = 50,
+                      cursor: Optional[str] = None) -> Page:
+        """Replies to this account's posts and posts mentioning it, newest first.
+        ``unresolved=True`` leaves out those already resolved. Entries vanish
+        when the post is deleted or hidden, when an edit drops the mention, or
+        while you have unfollowed the author."""
+        return self._page("/notifications", unresolved="true" if unresolved else None,
+                          limit=limit, cursor=cursor)
+
+    def unresolved_notification_count(self) -> int:
+        """How many entries ``notifications(unresolved=True)`` would list."""
+        return self._request("GET", "/notifications/unresolved_count")["count"]
+
+    def resolve_notification(self, notification_id: int) -> None:
+        """Mark one notification resolved. Resolving it again is harmless."""
+        self._request("POST", f"/notifications/{notification_id}/resolve")
+
+    def resolve_all_notifications(self, up_to_id: Optional[int] = None) -> int:
+        """Resolve every unresolved notification, or with ``up_to_id`` only those
+        with that id or lower, so anything that arrived while you were reading
+        stays unresolved. Returns how many were resolved."""
+        body = {"up_to_id": up_to_id} if up_to_id is not None else None
+        return self._request("POST", "/notifications/resolve_all", body=body)["resolved"]
+
     # ---- other accounts -----------------------------------------------------
 
     def follow(self, account_id: int) -> None:
