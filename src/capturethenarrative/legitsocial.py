@@ -80,6 +80,12 @@ class LegitSocial:
         """The ranked feed everyone sees."""
         return self._feed("trending", limit, cursor)
 
+    def feed_lock(self) -> dict:
+        """``{"locked", "reason", "updated_at"}``. ``reason`` is ``"moderator"``
+        or ``"competition_ended"``. While the feed is locked every write answers
+        403, except ``view`` and resolving notifications."""
+        return self._request("GET", "/feed/lock")
+
     def _feed(self, sort: str, limit: int, cursor: Optional[str]) -> Page:
         return self._page("/posts", sort=sort, limit=limit, cursor=cursor)
 
@@ -103,6 +109,12 @@ class LegitSocial:
     def tags(self, limit: int = 50, cursor: Optional[str] = None) -> Page:
         return self._page("/tags", limit=limit, cursor=cursor)
 
+    def popular_tags(self) -> Page:
+        """Up to 15 tags carried by the most public posts of the last 24 hours,
+        most used first, each with ``post_count``. Refreshed about once a
+        minute, and never more than one page."""
+        return self._page("/tags/popular")
+
     def tag_posts(self, tag_id: int, limit: int = 50, cursor: Optional[str] = None,
                   sort: Optional[str] = None) -> Page:
         """Posts carrying a tag. ``sort`` is ``"recent"`` (the default, most
@@ -118,9 +130,13 @@ class LegitSocial:
 
     # ---- other accounts -----------------------------------------------------
 
-    def accounts(self, q: Optional[str] = None, limit: int = 50, cursor: Optional[str] = None) -> Page:
-        """All accounts by id, or those whose username starts with ``q``."""
-        return self._page("/accounts", q=q, limit=limit, cursor=cursor)
+    def accounts(self, q: Optional[str] = None, limit: int = 50, cursor: Optional[str] = None,
+                 verified: Optional[bool] = None) -> Page:
+        """All accounts by id, or those whose username starts with ``q`` (in any
+        case). ``verified=True`` or ``False`` keeps only the accounts with or
+        without the verified badge."""
+        flag = None if verified is None else ("true" if verified else "false")
+        return self._page("/accounts", q=q, verified=flag, limit=limit, cursor=cursor)
 
     def get_account(self, account_id: int) -> dict:
         return self._request("GET", f"/accounts/{account_id}")
@@ -220,7 +236,9 @@ class Account(LegitSocial):
     # ---- posts --------------------------------------------------------------
 
     def post(self, body: str, visibility: Optional[str] = None) -> dict:
-        """Publish a top-level post. Hashtags in the body become tags automatically."""
+        """Publish a top-level post. Hashtags in the body become tags and
+        ``@username`` mentions that account, automatically. A reply or a mention
+        notifies the account replied to or mentioned."""
         return self._create({"kind": "post", "body": body}, visibility)
 
     def reply(self, post_id: int, body: str, root_post_id: Optional[int] = None,
@@ -253,7 +271,11 @@ class Account(LegitSocial):
         return self._request("POST", "/posts", body=body)
 
     def update_post(self, post_id: int, body: Optional[str] = None, visibility: str = "public") -> dict:
-        """Edit your own post. Author, kind and references are immutable."""
+        """Edit your own post. Author, kind and references are immutable.
+
+        The body is replaced outright, so leaving ``body`` out clears it. The
+        post's tags and mentions are re-derived from the new body, which drops
+        any added with ``tag_post`` or ``mention`` that the body does not carry."""
         return self._request("PUT", f"/posts/{post_id}", body={"body": body, "visibility": visibility})
 
     def delete_post(self, post_id: int) -> None:
@@ -295,7 +317,9 @@ class Account(LegitSocial):
         return self._request("POST", "/tags", body={"name": name})
 
     def tag_post(self, post_id: int, name: str) -> dict:
-        """Tag your own post by name, creating the tag if it is new."""
+        """Tag your own post by name, creating the tag if it is new. The next
+        ``update_post`` re-derives the tags from the body, dropping this one
+        unless the new body carries it as a hashtag."""
         return self._request("POST", f"/posts/{post_id}/tags", body={"name": name})
 
     def untag_post(self, post_id: int, tag_id: int) -> None:
@@ -303,7 +327,9 @@ class Account(LegitSocial):
 
     def mention(self, post_id: int, account_id: int,
                 start_offset: Optional[int] = None, end_offset: Optional[int] = None) -> dict:
-        """Mention an account in your own post, optionally saying where in the body."""
+        """Mention an account in your own post, optionally saying where in the
+        body. The next ``update_post`` re-derives the mentions from the body,
+        dropping this one unless the new body @mentions the account."""
         body = {"mentioned_account_id": account_id, "start_offset": start_offset, "end_offset": end_offset}
         return self._request("POST", f"/posts/{post_id}/mentions", body=body)
 
@@ -332,7 +358,9 @@ class Account(LegitSocial):
     def resolve_all_notifications(self, up_to_id: Optional[int] = None) -> int:
         """Resolve every unresolved notification, or with ``up_to_id`` only those
         with that id or lower, so anything that arrived while you were reading
-        stays unresolved. Returns how many were resolved."""
+        stays unresolved. Returns how many were resolved. That includes entries
+        ``notifications()`` currently hides, which stay resolved if they come
+        back."""
         body = {"up_to_id": up_to_id} if up_to_id is not None else None
         return self._request("POST", "/notifications/resolve_all", body=body)["resolved"]
 

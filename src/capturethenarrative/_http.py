@@ -67,7 +67,8 @@ class APIError(Exception):
     @property
     def not_ready_reasons(self) -> Optional[list]:
         """The accounts system's reasons when a write was refused because the team
-        is not ready to compete, otherwise ``None``."""
+        is not ready to compete, or a registration because the competition has
+        not started yet, otherwise ``None``."""
         reasons = self.json.get("not_ready_reasons")
         return list(reasons) if isinstance(reasons, list) else None
 
