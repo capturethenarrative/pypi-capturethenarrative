@@ -9,7 +9,8 @@ from ._http import APIError, Page, RateLimit, request_json
 
 DEFAULT_LEGIT_SOCIAL_URL = "https://social.legitreal.com/api"
 
-POST_REPORT_REASONS = ("hate_speech", "illegal_content", "inauthentic")
+POST_REPORT_REASONS = ("hate_speech", "illegal_content", "inauthentic", "other")
+ACCOUNT_REPORT_REASONS = ("harassment", "impersonation", "inauthentic", "other")
 
 
 class LegitSocial:
@@ -139,7 +140,13 @@ class LegitSocial:
         return self._page("/accounts", q=q, verified=flag, limit=limit, cursor=cursor)
 
     def get_account(self, account_id: int) -> dict:
+        """One account. An account with ``"private": True`` leaves out
+        ``created_at`` unless you are that account or an organiser, and its
+        followers, following, posts, likes and mentions answer ``403``."""
         return self._request("GET", f"/accounts/{account_id}")
+
+    # The five per-account reads below answer 403 for a private account unless
+    # the caller is that account or an organiser; the error names the account.
 
     def followers(self, account_id: int, limit: int = 50, cursor: Optional[str] = None) -> Page:
         return self._page(f"/accounts/{account_id}/followers", limit=limit, cursor=cursor)
@@ -221,6 +228,10 @@ class Account(LegitSocial):
     @property
     def display_name(self) -> Optional[str]:
         return self.profile.get("display_name")
+
+    @property
+    def private(self) -> bool:
+        return bool(self.profile.get("private"))
 
     def me(self) -> dict:
         """``{"account", "role", "team"}``: the account with the role and team
@@ -305,10 +316,14 @@ class Account(LegitSocial):
         if not ids:
             return {}
         reposts = self._request("GET", f"/reposts/mine?post_ids={ids}")["reposts"]
-        return {r["post_id"]: r["repost_id"] for r in reposts}
+        return {r["post_id"]: r["repost_post_id"] for r in reposts}
 
-    def report_post(self, post_id: int, reason: str, detail: Optional[str] = None) -> dict:
-        """File a report. ``reason`` is one of ``POST_REPORT_REASONS``."""
+    def report_post(self, post_id: int, reason: str, detail: str) -> dict:
+        """File a report. ``reason`` is one of ``POST_REPORT_REASONS`` and
+        ``detail`` must say why, beginning for example
+        ``"I think that this content is inauthentic (bot) activity because..."``.
+        A blank detail is a 400 whose message gives the opening for the reason
+        you chose."""
         return self._request("POST", f"/posts/{post_id}/report", body={"reason": reason, "detail": detail})
 
     # ---- tags and mentions --------------------------------------------------
@@ -372,8 +387,15 @@ class Account(LegitSocial):
     def unfollow(self, account_id: int) -> None:
         self._request("DELETE", f"/accounts/{account_id}/follow")
 
-    def report_account(self, account_id: int, reason: str, detail: Optional[str] = None) -> dict:
-        """Report an account. Unlike post reports, ``reason`` is free text."""
+    def report_account(self, account_id: int, reason: str, detail: str) -> dict:
+        """Report an account. ``reason`` is one of ``ACCOUNT_REPORT_REASONS``
+        and ``detail`` must say why, beginning for example
+        ``"I think that this account is conducting harassment because..."``.
+        A blank detail is a 400 whose message gives the opening for the reason
+        you chose. An ``"inauthentic"`` report is ruled on by the platform's
+        automated moderation: the account is suspended if it already has a post
+        hidden by a moderator and has taken at least 100 actions, and otherwise
+        the report is dismissed and the account may be reported again."""
         return self._request("POST", f"/accounts/{account_id}/report", body={"reason": reason, "detail": detail})
 
     # ---- this account -------------------------------------------------------
@@ -389,6 +411,14 @@ class Account(LegitSocial):
         self.profile = self._request("PUT", f"/accounts/{self.account_id}", body=body)
         return self.profile
 
+    def set_private(self, private: bool = True) -> dict:
+        """Mark this account private, or public again. While private, your
+        posts, likes, mentions, followers, following and join date are shown
+        only to you and to the organisers; your posts still appear in the feeds and
+        anyone can still follow you."""
+        self.profile = self._request("PUT", f"/accounts/{self.account_id}/private", body={"private": private})
+        return self.profile
+
     def delete(self) -> None:
         """Delete this account. A deleted account counts against your team's
         total allowance for good, but frees a place under its active one."""
@@ -399,4 +429,12 @@ def _ids(post_ids: Iterable[int]) -> str:
     return ",".join(str(int(i)) for i in post_ids)
 
 
-__all__ = ["DEFAULT_LEGIT_SOCIAL_URL", "LegitSocial", "Account", "APIError", "Page", "POST_REPORT_REASONS"]
+__all__ = [
+    "DEFAULT_LEGIT_SOCIAL_URL",
+    "LegitSocial",
+    "Account",
+    "APIError",
+    "Page",
+    "POST_REPORT_REASONS",
+    "ACCOUNT_REPORT_REASONS",
+]

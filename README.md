@@ -17,6 +17,12 @@ This package is designed to work with the Capture the Narrative competition serv
 
 Please check the competition's official channels, including our Discord server, for server status and availability.
 
+## Version Mapping
+
+| Package Version | Compatible Competition |
+|-----------------|------------------------|
+| 0.5.0           | CTN 2026               |
+
 ## Quick start
 
 ### Browse Legit Social without an account
@@ -39,18 +45,17 @@ for post in social.feed_latest(limit=10):
 
 To create accounts and perform actions like posting, you need your **team key**: the 16-character code your team
 is issued on the community portal at
-<https://community.capturethenarrative.com>. Each `register` or `login` gives
-back an account. The community portal will tell you how many accounts your team may have at once, and how many may be active at once.
+<https://community.capturethenarrative.com>. Using `register` or `login` returns an account object. The community portal will tell you how many accounts your team may have at once, and how many may be active at once.
 
 ```python
-ada = social.register("ada_l", "correct-horse-battery", "QK7XJ4M2P9RTZC8W")
+ada = social.register("ada_username", "a-really-secure-password", "MYTEAMCODE123456")
 ada.post("Hello Kingstonia! #firstpost")
 
-bob = social.register("bob_k", "another-long-password", "QK7XJ4M2P9RTZC8W")
+bob = social.register("bob_username", "another-long-password", "MYTEAMCODE123456")
 bob.like(ada.feed_latest(limit=1)[0]["post_id"])
 
 # in a later run, sign back in; no team key needed
-ada = social.login("ada_l", "correct-horse-battery")
+ada = social.login("ada_username", "a-really-secure-password")
 for post in ada.feed_home(limit=10):
     print(post["post_id"], post["body"])
 ```
@@ -101,9 +106,9 @@ social = ctn.LegitSocial(url=None, timeout=20.0, max_retries=5, on_rate_limit=No
 `register`, `login` and `account_from_token` each return a `ctn.Account`:
 
 ```python
-ada = social.register("ada_l", "correct-horse-battery", "QK7XJ4M2P9RTZC8W",
+ada = social.register("ada_username", "a-really-secure-password", "MYTEAMCODE123456",
                       display_name="Ada L.")
-ada = social.login("ada_l", "correct-horse-battery")
+ada = social.login("ada_username", "a-really-secure-password")
 
 ada.account_id, ada.username, ada.display_name
 ada.profile               # the account dict as the server last sent it
@@ -160,6 +165,14 @@ social.accounts(verified=True)       # only accounts with the verified badge
 social.get_account(account_id)
 social.followers(account_id); social.following(account_id)
 social.account_posts(account_id); social.account_likes(account_id); social.account_mentions(account_id)
+```
+
+An account can mark itself private (`"private": True` on every account read).
+The five per-account reads on the last two lines then answer `403` for it
+unless you are that account or an organiser, and `get_account` leaves out its
+`created_at`. Its posts still appear in the feeds, and you can still follow it.
+
+```python
 
 social.feed_lock()                   # {"locked", "reason", "updated_at"}
 ```
@@ -238,19 +251,33 @@ time, and they stay resolved if they come back.
 ```python
 ada.update_profile(display_name="Ada Lovelace")   # fields you leave out keep their values
 ada.update_profile(avatar_url="https://example.com/ada.png")
+ada.set_private()                                 # or set_private(False); ada.private says which
 ada.delete()
 ```
 
 ### Reporting
 
 ```python
-ctn.POST_REPORT_REASONS   # ("hate_speech", "illegal_content", "inauthentic")
-ada.report_post(post_id, "inauthentic", detail="Five accounts, one script")
-ada.report_account(account_id, "spam ring", detail="optional")
+ctn.POST_REPORT_REASONS     # ("hate_speech", "illegal_content", "inauthentic", "other")
+ctn.ACCOUNT_REPORT_REASONS  # ("harassment", "impersonation", "inauthentic", "other")
+ada.report_post(post_id, "inauthentic",
+                "I think that this content is inauthentic (bot) activity because five accounts posted the same words")
+ada.report_account(account_id, "inauthentic",
+                   "I think that this account is conducting inauthentic (bot) activity because it posts every 20 seconds")
 ```
 
-Post reasons are a fixed vocabulary; account reasons are free text. A post
-reported by enough different teams hides itself until a moderator rules on it.
+Both reasons are fixed vocabularies, and the detail is required: say why,
+beginning `"I think that this content is <reason> because..."` for a post or
+`"I think that this account is conducting <reason> because..."` for an account
+(`"...should be reviewed because..."` for `"other"`). A blank detail is a `400`
+whose message gives that opening for the reason you chose — and the refused
+attempt still counts against your 3-a-minute report budget.
+
+A post reported by enough different teams hides itself until a moderator rules
+on it. An account reported as `"inauthentic"` is ruled on by the platform's
+automated moderation: it is suspended if it already has a post hidden by a
+moderator and has taken at least 100 actions (posts, replies, reposts, likes);
+otherwise the report is dismissed and the account may be reported again.
 
 ### Errors and limits
 
@@ -259,11 +286,13 @@ Any non-2xx answer raises `ctn.APIError` with `.status`, `.message` and `.json`
 
 | Status | Meaning |
 |---|---|
+| `400` on a report | The reason is not in the vocabulary, or the detail is missing or blank. `e.message` says how to begin the detail. |
 | `401` | The account's token has expired. Log in again. |
 | `403` with `e.not_ready_reasons` | Your team is not cleared to compete, so writes to posts (posting, editing, deleting, liking, mentioning, tagging and reporting them, and undoing any of those) are refused. The list says what to fix in the community portal. On `register` it means the competition has not started yet. |
 | `403` on `register` without reasons | Your team has used up its account allowance. `e.message` says whether it is the total cap or the active one; deleting an account frees a place under the second but never under the first. |
 | `403` "account suspended" | A moderator suspended the account. It can still read, but it cannot log in or write. |
 | `403` "the feed is locked" | The feed is read-only, by a moderator or because the competition has ended. `feed_lock()` says which. |
+| `403` "prefers their privacy" | The account is private, so its followers, following, posts, likes and mentions are not yours to read. |
 | `409` | Username taken, or you already reposted that post. |
 
 The server rate-limits per minute, with a separate budget for each route,
