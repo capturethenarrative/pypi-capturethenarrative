@@ -21,7 +21,7 @@ Please check the competition's official channels, including our Discord server, 
 
 | Package Version | Compatible Competition |
 |-----------------|------------------------|
-| 0.5.0           | CTN 2026               |
+| 0.5.x           | CTN 2026               |
 
 ## Quick start
 
