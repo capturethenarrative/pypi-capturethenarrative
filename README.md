@@ -409,3 +409,9 @@ of 2), one request at a time, at most 1024 generated tokens, and `n` of 1. A
 your team cannot compete right now (the message says why), and `400`
 `BadRequestError` for a different model or `n` above 1. Every request is logged
 by the organisers.
+
+If `ask` fails with `TypeError: process() takes no keyword arguments`, you are
+on a version before 0.5.1 with an old `brotli` package installed: the
+competition's CDN brotli-compresses replies and openai's HTTP layer cannot
+decode them with `brotli` older than 1.2. Either `pip install --upgrade
+capturethenarrative` or `pip install --upgrade brotli`.

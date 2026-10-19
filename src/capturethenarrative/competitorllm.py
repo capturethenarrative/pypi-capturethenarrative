@@ -34,7 +34,16 @@ class CompetitorLLM(openai.OpenAI):
         # Without this check openai falls back to OPENAI_API_KEY.
         if not team_code:
             raise ValueError("team_code is required: your team's code from the accounts portal")
-        super().__init__(api_key=team_code, base_url=base_url, max_retries=max_retries, **kwargs)
+        # The competition endpoint sits behind a CDN that brotli-compresses
+        # replies when the client offers "br", which openai's HTTP layer does
+        # whenever the brotli package is installed — and with brotli older
+        # than 1.2 its decoder then fails with "process() takes no keyword
+        # arguments". Offering only the encodings the standard library decodes
+        # keeps the client out of that, whatever else a team has installed.
+        headers = dict(kwargs.pop("default_headers", None) or {})
+        headers.setdefault("Accept-Encoding", "gzip, deflate")
+        super().__init__(api_key=team_code, base_url=base_url, max_retries=max_retries,
+                         default_headers=headers, **kwargs)
 
     def ask(self, prompt: str, *, system: Optional[str] = None,
             max_tokens: Optional[int] = None, **kwargs: Any) -> str:

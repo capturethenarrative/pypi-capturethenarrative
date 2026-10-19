@@ -28,7 +28,7 @@ from .competitorllm import DEFAULT_COMPETITOR_LLM_URL, CompetitorLLM
 from .legitsocial import ACCOUNT_REPORT_REASONS, DEFAULT_LEGIT_SOCIAL_URL, POST_REPORT_REASONS, Account, LegitSocial
 from .newssites import DEFAULT_NEWS_SITES_URL, NewsSites
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 __all__ = [
     "ACCOUNT_REPORT_REASONS",
